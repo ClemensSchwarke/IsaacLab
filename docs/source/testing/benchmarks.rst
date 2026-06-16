@@ -121,15 +121,23 @@ Measure environment stepping performance without any RL library:
 RL Training Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Measure training performance with RSL-RL:
+Measure training performance.  Use ``--rl_library`` to select the backend
+(``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``):
 
 .. code-block:: bash
 
-   # Run training benchmarks
-   ./scripts/benchmarks/run_training_benchmarks.sh ./output_dir
+   # Benchmark with RSL-RL
+   ./isaaclab.sh -p scripts/benchmarks/training.py \
+       --rl_library rsl_rl \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --max_iterations 500 \
+       --benchmark_backend json \
+       --output_path ./results
 
-   # Run manually with RSL-RL
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   # Benchmark with RL Games
+   ./isaaclab.sh -p scripts/benchmarks/training.py \
+       --rl_library rl_games \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
@@ -292,14 +300,17 @@ RL Training Arguments
    * - Argument
      - Default
      - Description
+   * - ``--rl_library``
+     - required
+     - RL backend: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--task``
      - required
      - Environment task name
    * - ``--num_envs``
-     - ``4096``
+     - ``None`` (task config)
      - Number of parallel environments
    * - ``--max_iterations``
-     - ``500``
+     - ``None`` (task config)
      - Number of training iterations
 
 Measurement Types
@@ -641,6 +652,13 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
        ./isaaclab.sh -p scripts/benchmarks/runtime.py \
            --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
            --benchmark_backend json --output_path ./benchmark_results
+
+   - name: Run Training Benchmark
+     run: |
+       ./isaaclab.sh -p scripts/benchmarks/training.py \
+           --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
+           --max_iterations 500 --benchmark_backend json \
+           --output_path ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3
