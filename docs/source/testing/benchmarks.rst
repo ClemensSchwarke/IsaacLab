@@ -141,7 +141,7 @@ Measure training performance.  Use ``--rl_library`` to select the RL library
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
 PhysX Micro-Benchmarks
