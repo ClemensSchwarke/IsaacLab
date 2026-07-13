@@ -112,21 +112,20 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
-        # threshold to 0.8 rad/s (defaults work for quadrupeds).
+        # relax yaw success threshold — biped yaw control is harder than quadruped
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
-        # Scene
+        # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
-        # G1 uses "torso_link" as base body — disable mass randomization for bipeds
-        self.events.add_base_mass = None
+        # G1 uses "torso_link" as base body
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
         # G1 has precise initial pose — don't scale joint defaults randomly on reset
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
-        # Rewards
+        # rewards
         self.rewards.lin_vel_z_l2.weight = 0.0
         self.rewards.undesired_contacts = None
         self.rewards.flat_orientation_l2.weight = -1.0
@@ -140,7 +139,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
         )
 
-        # Commands
+        # commands
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
@@ -158,7 +157,6 @@ class G1RoughEnvCfg_PLAY(G1RoughEnvCfg):
         # make a smaller scene for play
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        self.episode_length_s = 40.0
         # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.max_init_terrain_level = None
         # reduce the number of terrains to save memory
@@ -166,13 +164,7 @@ class G1RoughEnvCfg_PLAY(G1RoughEnvCfg):
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
-        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None

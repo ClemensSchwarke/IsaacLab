@@ -22,7 +22,7 @@ class PhysicsCfg(PresetCfg):
             njmax=60,
             nconmax=25,
             cone="elliptic",
-            impratio=100,
+            impratio=100.0,
         ),
         num_substeps=1,
         debug_mode=False,
@@ -55,7 +55,7 @@ class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
 
 @configclass
 class AnymalDFlatEnvCfg_PLAY(AnymalDFlatEnvCfg):
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
@@ -64,6 +64,5 @@ class AnymalDFlatEnvCfg_PLAY(AnymalDFlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

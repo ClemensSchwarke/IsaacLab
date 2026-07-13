@@ -23,7 +23,7 @@ class PhysicsCfg(PresetCfg):
             njmax=95,
             nconmax=10,
             cone="pyramidal",
-            impratio=1,
+            impratio=1.0,
             integrator="implicitfast",
         ),
         num_substeps=1,
@@ -50,7 +50,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         # no terrain curriculum
         self.curriculum.terrain_levels = None
 
-        # Rewards
+        # rewards
         self.rewards.track_ang_vel_z_exp.weight = 1.0
         self.rewards.lin_vel_z_l2.weight = -0.2
         self.rewards.action_rate_l2.weight = -0.005
@@ -61,7 +61,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
         )
-        # Commands
+        # commands
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
@@ -69,7 +69,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
 
 @configclass
 class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
@@ -78,6 +78,5 @@ class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None

@@ -5,6 +5,8 @@
 
 import math
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils.configclass import configclass
@@ -219,7 +221,7 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Scene
+        # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
@@ -233,10 +235,7 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # Digit has precise initial pose — don't scale joint defaults randomly on reset
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
-        # Override actuator to target only actuated joints. Digit has ball joints (rod constraints)
-        # that MuJoCo represents with 4 DoFs instead of 3, inflating joint_pos to 74 columns while
-        # joint_pos_target stays at 64. Using ".*" gives slice(None) which indexes both buffers
-        # differently. Explicit joint names produce a concrete index tensor that works correctly.
+        # target only actuated joints explicitly — ".*" mis-indexes Digit's ball-joint DoFs
         self.scene.robot.actuators = {
             "legs_arms": ImplicitActuatorCfg(
                 joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
@@ -245,7 +244,15 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             ),
         }
 
-        # Commands
+        # raise PhysX broadphase buffers — Digit's many collision bodies overflow the defaults
+        self.sim.physics.default = PhysxCfg(
+            gpu_max_rigid_patch_count=10 * 2**15,
+            gpu_found_lost_pairs_capacity=2**23,
+            gpu_total_aggregate_pairs_capacity=2**23,
+        )
+        self.sim.physics.physx = self.sim.physics.default
+
+        # commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
@@ -258,19 +265,17 @@ class DigitRoughEnvCfg_PLAY(DigitRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Make a smaller scene for play.
+        # make a smaller scene for play
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # Spawn the robot randomly in the grid (instead of their terrain levels).
+        # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.max_init_terrain_level = None
-        # Reduce the number of terrains to save memory.
+        # reduce the number of terrains to save memory
         if self.scene.terrain.terrain_generator is not None:
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
-        # Disable randomization for play.
+        # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # Remove random pushing.
         self.events.base_external_force_torque = None
         self.events.push_robot = None

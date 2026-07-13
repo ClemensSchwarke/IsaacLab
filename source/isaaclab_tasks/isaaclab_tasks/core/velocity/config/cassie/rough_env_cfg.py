@@ -53,29 +53,20 @@ class CassieRewardsCfg(RewardsCfg):
 
 @configclass
 class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    """Cassie rough environment configuration."""
-
     rewards: CassieRewardsCfg = CassieRewardsCfg()
 
     def __post_init__(self):
         super().__post_init__()
 
-        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
-        # threshold to 0.8 rad/s (defaults work for quadrupeds).
+        # relax yaw success threshold — biped yaw control is harder than quadruped
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # Cassie Newton-only armature for biped stability on rough terrain; PhysX unchanged
         self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
 
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
-        # Cassie uses "pelvis" as base body. Override the shared symmetric
-        # (1/1.25, 1.25) log-uniform scale with asymmetric (1.0, 1.25) —
-        # lighter-than-nominal pelvis destabilizes Cassie's closed-loop
-        # Achilles coupling + hip PD response, so only heavier perturbations
-        # are safe. Symmetric ±25% regressed reward 40% vs disabled;
-        # (1.0, 1.25) recovers to 90% of baseline.
+        # asymmetric pelvis mass scale (1.0, 1.25) — a lighter-than-nominal pelvis destabilizes Cassie
         self.events.add_base_mass.params["asset_cfg"].body_names = "pelvis"
         self.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.25)
         self.events.base_com = None
@@ -114,9 +105,7 @@ class CassieRoughEnvCfg_PLAY(CassieRoughEnvCfg):
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
-        self.commands.base_velocity.ranges.lin_vel_x = (0.7, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # disable randomization for play
         self.observations.policy.enable_corruption = False
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

@@ -39,9 +39,7 @@ class AnymalDRoughEnvCfg_PLAY(AnymalDRoughEnvCfg):
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

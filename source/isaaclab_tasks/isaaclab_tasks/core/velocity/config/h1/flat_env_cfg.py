@@ -22,7 +22,7 @@ class PhysicsCfg(PresetCfg):
             njmax=65,
             nconmax=15,
             cone="pyramidal",
-            impratio=1,
+            impratio=1.0,
             integrator="implicitfast",
         ),
         num_substeps=1,
@@ -54,7 +54,7 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
 
 @configclass
 class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
@@ -63,6 +63,5 @@ class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
         self.events.base_external_force_torque = None
         self.events.push_robot = None

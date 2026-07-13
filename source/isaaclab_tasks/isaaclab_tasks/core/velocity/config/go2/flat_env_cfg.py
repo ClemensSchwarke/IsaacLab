@@ -22,7 +22,7 @@ class PhysicsCfg(PresetCfg):
             njmax=65,
             nconmax=35,
             cone="pyramidal",
-            impratio=1,
+            impratio=1.0,
             integrator="implicitfast",
         ),
         num_substeps=1,
@@ -56,7 +56,7 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
 
 @configclass
 class UnitreeGo2FlatEnvCfg_PLAY(UnitreeGo2FlatEnvCfg):
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
@@ -65,6 +65,5 @@ class UnitreeGo2FlatEnvCfg_PLAY(UnitreeGo2FlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

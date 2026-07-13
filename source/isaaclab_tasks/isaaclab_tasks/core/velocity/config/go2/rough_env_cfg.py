@@ -25,9 +25,12 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"
         # scale down the terrains because the robot is small
-        self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
-        self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_range = (0.01, 0.06)
-        self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
+        terrains = self.scene.terrain.terrain_generator.sub_terrains
+        terrains["boxes"].grid_height_range = (0.025, 0.1)
+        terrains["random_rough"].noise_range = (0.01, 0.06)
+        terrains["random_rough"].noise_step = 0.01
+        terrains["pyramid_stairs"].step_height_range = (0.025, 0.12)
+        terrains["pyramid_stairs_inv"].step_height_range = (0.025, 0.12)
 
         # reduce action scale
         self.actions.joint_pos.scale = 0.25
@@ -61,9 +64,7 @@ class UnitreeGo2RoughEnvCfg_PLAY(UnitreeGo2RoughEnvCfg):
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing event
         self.events.base_external_force_torque = None
         self.events.push_robot = None

@@ -22,7 +22,7 @@ class PhysicsCfg(PresetCfg):
             njmax=200,
             nconmax=15,
             cone="pyramidal",
-            impratio=1,
+            impratio=1.0,
             integrator="implicitfast",
         ),
         num_substeps=1,
@@ -39,26 +39,25 @@ class DigitFlatEnvCfg(DigitRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Change terrain to flat.
+        # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # Remove height scanner.
+        # no height scan
         self.scene.height_scanner = None
         self.observations.policy.height_scan = None
-        # Remove terrain curriculum.
+        # no terrain curriculum
         self.curriculum.terrain_levels = None
 
 
 @configclass
 class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         super().__post_init__()
 
-        # Make a smaller scene for play.
+        # make a smaller scene for play
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # Disable randomization for play.
+        # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # Remove random pushing.
         self.events.base_external_force_torque = None
         self.events.push_robot = None
