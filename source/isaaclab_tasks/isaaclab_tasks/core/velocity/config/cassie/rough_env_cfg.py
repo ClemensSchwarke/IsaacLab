@@ -58,28 +58,14 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # relax yaw success threshold — biped yaw control is harder than quadruped
-        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
-
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
-
-        # asymmetric pelvis mass scale (1.0, 1.25) — a lighter-than-nominal pelvis destabilizes Cassie
-        self.events.add_base_mass.params["asset_cfg"].body_names = "pelvis"
-        self.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.25)
-        self.events.base_com = None
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*pelvis"
-        # Cassie has precise initial pose — don't scale joint defaults randomly on reset
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
         # actions
         self.actions.joint_pos.scale = 0.5
-
-        # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]
-
+        # commands
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # rewards
         self.rewards.undesired_contacts = None
         self.rewards.dof_torques_l2.weight = -5.0e-6
@@ -87,25 +73,32 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.track_ang_vel_z_exp.weight = 1.0
         self.rewards.action_rate_l2.weight *= 1.5
         self.rewards.dof_acc_l2.weight *= 1.5
+        # terminations
+        self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]
+        # events
+        # asymmetric pelvis mass scale (1.0, 1.25) — a lighter-than-nominal pelvis destabilizes Cassie
+        self.events.add_base_mass.params["asset_cfg"].body_names = "pelvis"
+        self.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.25)
+        self.events.base_com = None
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*pelvis"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
 
 @configclass
 class CassieRoughEnvCfg_PLAY(CassieRoughEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # make a smaller scene for play
+        # scene
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.max_init_terrain_level = None
-        # reduce the number of terrains to save memory
         if self.scene.terrain.terrain_generator is not None:
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-        # disable randomization for play
+        # observations
         self.observations.policy.enable_corruption = False
+        # events
         self.events.base_external_force_torque = None
         self.events.push_robot = None

@@ -37,33 +37,31 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # override rewards
-        self.rewards.flat_orientation_l2.weight = -2.5
-        self.rewards.feet_air_time.weight = 0.25
-
-        # change terrain to flat
+        # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # no height scan
         self.scene.height_scanner = None
+        # observations
         self.observations.policy.height_scan = None
-        # no terrain curriculum
+        # rewards
+        self.rewards.flat_orientation_l2.weight = -2.5
+        self.rewards.feet_air_time.weight = 0.25
+        # curriculum
         self.curriculum.terrain_levels = None
 
 
 @configclass
 class UnitreeGo2FlatEnvCfg_PLAY(UnitreeGo2FlatEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # make a smaller scene for play
+        # scene
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
+        # observations
         self.observations.policy.enable_corruption = False
+        # events
         self.events.base_external_force_torque = None
         self.events.push_robot = None

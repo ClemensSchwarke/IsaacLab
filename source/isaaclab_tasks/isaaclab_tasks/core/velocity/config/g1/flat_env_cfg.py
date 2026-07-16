@@ -38,18 +38,18 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # change terrain to flat
+        # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # no height scan
         self.scene.height_scanner = None
+        # observations
         self.observations.policy.height_scan = None
-        # no terrain curriculum
-        self.curriculum.terrain_levels = None
-
+        # commands
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         # rewards
         self.rewards.track_ang_vel_z_exp.weight = 1.0
         self.rewards.lin_vel_z_l2.weight = -0.2
@@ -61,22 +61,20 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
         )
-        # commands
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        # curriculum
+        self.curriculum.terrain_levels = None
 
 
 @configclass
 class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # make a smaller scene for play
+        # scene
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
+        # observations
         self.observations.policy.enable_corruption = False
+        # events
         self.events.base_external_force_torque = None
         self.events.push_robot = None

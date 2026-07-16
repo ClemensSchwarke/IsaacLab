@@ -37,31 +37,31 @@ class H1FlatEnvCfg(H1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # change terrain to flat
+        # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # no height scan
         self.scene.height_scanner = None
+        # observations
         self.observations.policy.height_scan = None
-        # no terrain curriculum
-        self.curriculum.terrain_levels = None
+        # rewards
         self.rewards.feet_air_time.weight = 1.0
         self.rewards.feet_air_time.params["threshold"] = 0.6
+        # curriculum
+        self.curriculum.terrain_levels = None
 
 
 @configclass
 class H1FlatEnvCfg_PLAY(H1FlatEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # make a smaller scene for play
+        # scene
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
+        # observations
         self.observations.policy.enable_corruption = False
+        # events
         self.events.base_external_force_torque = None
         self.events.push_robot = None

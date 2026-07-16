@@ -221,20 +221,20 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
+        # sim
+        # raise PhysX broadphase buffers — Digit's collision bodies overflow the defaults
+        self.sim.physics.default = PhysxCfg(
+            gpu_max_rigid_patch_count=10 * 2**15,
+            gpu_found_lost_pairs_capacity=2**23,
+            gpu_total_aggregate_pairs_capacity=2**23,
+        )
+        self.sim.physics.physx = self.sim.physics.default
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-
-        # Digit uses "torso_base" as base body
-        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
-        # Digit has precise initial pose — don't scale joint defaults randomly on reset
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
         # target only actuated joints explicitly — ".*" mis-indexes Digit's ball-joint DoFs
         self.scene.robot.actuators = {
             "legs_arms": ImplicitActuatorCfg(
@@ -243,21 +243,17 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 damping=None,
             ),
         }
-
-        # raise PhysX broadphase buffers — Digit's many collision bodies overflow the defaults
-        self.sim.physics.default = PhysxCfg(
-            gpu_max_rigid_patch_count=10 * 2**15,
-            gpu_found_lost_pairs_capacity=2**23,
-            gpu_total_aggregate_pairs_capacity=2**23,
-        )
-        self.sim.physics.physx = self.sim.physics.default
-
         # commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.rel_standing_envs = 0.1
         self.commands.base_velocity.resampling_time_range = (3.0, 8.0)
+        # events
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
 
 @configclass
@@ -265,17 +261,16 @@ class DigitRoughEnvCfg_PLAY(DigitRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # make a smaller scene for play
+        # scene
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # spawn the robot randomly in the grid (instead of their terrain levels)
         self.scene.terrain.max_init_terrain_level = None
-        # reduce the number of terrains to save memory
         if self.scene.terrain.terrain_generator is not None:
             self.scene.terrain.terrain_generator.num_rows = 5
             self.scene.terrain.terrain_generator.num_cols = 5
             self.scene.terrain.terrain_generator.curriculum = False
-        # disable randomization for play
+        # observations
         self.observations.policy.enable_corruption = False
+        # events
         self.events.base_external_force_torque = None
         self.events.push_robot = None
