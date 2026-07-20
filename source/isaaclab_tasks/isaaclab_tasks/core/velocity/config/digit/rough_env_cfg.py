@@ -5,6 +5,7 @@
 
 import math
 
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -223,12 +224,17 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # sim
         # raise PhysX broadphase buffers — Digit's collision bodies overflow the defaults
-        self.sim.physics.default = PhysxCfg(
+        self.sim.physics.physx = PhysxCfg(
             gpu_max_rigid_patch_count=10 * 2**15,
             gpu_found_lost_pairs_capacity=2**23,
             gpu_total_aggregate_pairs_capacity=2**23,
         )
-        self.sim.physics.physx = self.sim.physics.default
+        self.sim.physics.default = self.sim.physics.physx
+        self.sim.physics.ovphysx = OvPhysxCfg(
+            gpu_max_rigid_patch_count=10 * 2**15,
+            gpu_found_lost_pairs_capacity=2**23,
+            gpu_total_aggregate_pairs_capacity=2**23,
+        )
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"

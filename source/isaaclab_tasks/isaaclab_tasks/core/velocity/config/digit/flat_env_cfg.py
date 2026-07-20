@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
@@ -16,7 +17,8 @@ from .rough_env_cfg import DigitRoughEnvCfg
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=200,
@@ -28,8 +30,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    physx = default
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    default = physx
 
 
 @configclass

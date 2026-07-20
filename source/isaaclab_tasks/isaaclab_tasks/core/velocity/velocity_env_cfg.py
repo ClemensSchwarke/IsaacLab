@@ -49,7 +49,8 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 class RoughPhysicsCfg(PresetCfg):
     """Shared physics preset for all rough-terrain locomotion envs."""
 
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=200,
@@ -67,8 +68,7 @@ class RoughPhysicsCfg(PresetCfg):
         # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    physx = default
-    ovphysx = OvPhysxCfg()
+    default = physx
 
 
 ##
@@ -78,11 +78,11 @@ class RoughPhysicsCfg(PresetCfg):
 
 @configclass
 class VelocityEnvContactSensorCfg(PresetCfg):
-    default = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    physx = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    ovphysx = OvPhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     newton_mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     newton_kamino = newton_mjwarp
-    physx = default
-    ovphysx = OvPhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    default = physx
 
 
 @configclass

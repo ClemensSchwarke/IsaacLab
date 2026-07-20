@@ -10,6 +10,7 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonShapeCfg,
 )
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -34,7 +35,8 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    ovphysx = OvPhysxCfg()
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=130,
@@ -49,8 +51,8 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    default = physx
 
 
 ##
@@ -228,10 +230,10 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 
 @configclass
 class SpotEventCfg(PresetCfg):
-    default = SpotPhysxEventCfg()
+    physx = SpotPhysxEventCfg()
     newton_mjwarp = SpotNewtonEventCfg()
-    physx = default
     newton_kamino = newton_mjwarp
+    default = physx
 
 
 @configclass
