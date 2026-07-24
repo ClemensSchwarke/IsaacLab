@@ -528,6 +528,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    run_name_contains: str | None = None,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -544,6 +545,8 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        run_name_contains: If set, only consider run directories whose name contains this substring
+            (e.g. ``"physx"``). Useful when one experiment directory holds runs from multiple backends.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -561,6 +564,10 @@ def resolve_checkpoint_selector(
     if log_root.is_dir():
         for run_dir in log_root.iterdir():
             if not run_dir.is_dir():
+                continue
+            # optionally restrict to run dirs whose name contains a marker (e.g. the ``--run_name``
+            # backend tag "physx"), so ``latest``/``best`` don't cross backends in a shared experiment dir
+            if run_name_contains is not None and run_name_contains not in run_dir.name:
                 continue
             manifest_path = run_dir / RUN_MANIFEST_FILENAME
             try:

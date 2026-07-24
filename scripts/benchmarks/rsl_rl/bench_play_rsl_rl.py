@@ -59,6 +59,25 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
+        "--terrain_rows",
+        type=int,
+        default=None,
+        help="Override terrain_generator.num_rows (increases tile count to reduce robots-per-tile density).",
+    )
+    parser.add_argument(
+        "--terrain_cols",
+        type=int,
+        default=None,
+        help="Override terrain_generator.num_cols (increases tile count to reduce robots-per-tile density).",
+    )
+    parser.add_argument(
+        "--checkpoint_run_name",
+        type=str,
+        default=None,
+        help="Only consider run dirs whose name contains this substring (e.g. 'physx'), so latest/best"
+        " don't cross backends in a shared experiment dir.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -117,6 +136,12 @@ def run(argv: list[str]) -> None:
 
         if args.num_envs is not None:
             env_cfg.scene.num_envs = args.num_envs
+        tg = getattr(getattr(env_cfg.scene, "terrain", None), "terrain_generator", None)
+        if tg is not None:
+            if args.terrain_rows is not None:
+                tg.num_rows = args.terrain_rows
+            if args.terrain_cols is not None:
+                tg.num_cols = args.terrain_cols
         if args.seed is not None:
             agent_cfg.seed = args.seed
         env_cfg.seed = agent_cfg.seed
@@ -133,6 +158,7 @@ def run(argv: list[str]) -> None:
                 task=args.task,
                 checkpoint_pattern=r"model_.*\.pt",
                 metadata={"agent": args.agent},
+                run_name_contains=args.checkpoint_run_name,
             )
         else:
             resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task)
@@ -141,13 +167,16 @@ def run(argv: list[str]) -> None:
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
         formatter_types = formatter_types or ["omniperf"]
 
+        # Encode the seed in the output filename so repeated seeds do not collide and can be averaged.
+        seed_tag = agent_cfg.seed if agent_cfg.seed is not None else 0
+
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_play",
             formatter_type=formatter_types,
             output_path=args.output_path,
             use_recorders=True,
             frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-            output_prefix=f"benchmark_play_{args.task}",
+            output_prefix=f"benchmark_play_{args.task}_seed{seed_tag}",
             workflow_metadata={
                 "metadata": [
                     {"name": "task", "data": args.task},

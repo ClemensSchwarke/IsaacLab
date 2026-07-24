@@ -85,3 +85,8 @@ _build
 
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
+
+# USD asset comparison scratch (downloaded assets + generated reports)
+usd_assets_download/
+usd_assets_menagerie/
+usd_compare_out/

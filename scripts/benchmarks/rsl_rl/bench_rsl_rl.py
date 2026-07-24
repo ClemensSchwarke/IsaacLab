@@ -148,6 +148,14 @@ def run(argv: list[str]) -> None:
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
 
+    # TEMP (nan-frame debug, opt-in via NAN_CAPTURE=1): pin the terrain seed so replay_nan_frame.py
+    # regenerates the *identical* mesh — TerrainGenerator builds its own RNG when seed is set,
+    # independent of num_envs. Off by default so normal benchmark runs use random terrain.
+    if os.environ.get("NAN_CAPTURE"):
+        _tg = getattr(getattr(env_cfg.scene, "terrain", None), "terrain_generator", None)
+        if _tg is not None:
+            _tg.seed = 0
+
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
 
@@ -204,6 +212,93 @@ def run(argv: list[str]) -> None:
         env_t1 = time.perf_counter_ns()
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+
+        # --- TEMPORARY: divergence-onset capture (remove when done debugging) ---
+        # The run does not die on a single physics NaN — a few envs diverge into a runaway (base
+        # pos/vel ramping to absurd-but-finite values), the garbage feeds the policy, and only ~150
+        # iters later does PPO crash on a NaN std. So we must catch the *first* env that goes bad,
+        # early, and from the OBSERVATION (post-step root_state_w is unreliable: diverged envs are
+        # reset inside env.step, hiding the explosion). We keep a rolling buffer of pre-step states,
+        # trigger on the first non-finite / absurd obs, dump the last still-*sane* frame (the pose
+        # worth looking at) plus the runaway ramp, then stop the run. Replay with replay_nan_frame.py.
+        import collections  # noqa: PLC0415
+
+        import torch as _torch  # noqa: PLC0415
+
+        _robot = env.unwrapped.scene["robot"]
+        _nan_path = os.path.join(log_dir, "nan_frame.pt")
+        _orig_step = env.step
+        _OBS_LIMIT = 1.0e3  # any |obs| this large is a divergence (legit obs magnitudes are < ~50)
+        _VEL_LIMIT = 25.0  # m/s or rad/s — used to pick the last *sane* base state from the buffer
+        _hist: collections.deque = collections.deque(maxlen=48)  # rolling pre-step snapshots
+
+        def _nan_capture_step(actions):
+            _hist.append(
+                {
+                    "root_state_w": _robot.data.root_state_w.clone(),
+                    "joint_pos": _robot.data.joint_pos.clone(),
+                    "joint_vel": _robot.data.joint_vel.clone(),
+                    "action": actions.detach().clone(),
+                }
+            )
+            result = _orig_step(actions)
+            obs = result[0]
+            obs_t = obs["policy"] if hasattr(obs, "keys") else obs  # dict / TensorDict / tensor
+            bad = ~_torch.isfinite(obs_t).all(dim=1) | (obs_t.abs() > _OBS_LIMIT).any(dim=1)
+            if bool(bad.any()):
+                e = int(_torch.nonzero(bad).flatten()[0])
+                # walk the buffer newest→oldest and pick the last frame whose base state is still sane
+                sane = 0
+                for k in range(len(_hist) - 1, -1, -1):
+                    rs = _hist[k]["root_state_w"][e]
+                    lv, av = rs[7:10].norm(), rs[10:13].norm()
+                    if bool(_torch.isfinite(lv) & _torch.isfinite(av) & (lv < _VEL_LIMIT) & (av < _VEL_LIMIT)):
+                        sane = k
+                        break
+                chosen = _hist[sane]
+                trace = _torch.stack([h["root_state_w"][e] for h in _hist])  # [buf, 13] pos+quat+vel ramp
+                jtrace = _torch.stack([h["joint_pos"][e] for h in _hist])  # [buf, njoints] per-frame joint angles
+                jvtrace = _torch.stack([h["joint_vel"][e] for h in _hist])  # [buf, njoints] per-frame joint vels
+                atrace = _torch.stack([h["action"][e] for h in _hist])  # [buf, action_dim] per-frame actions
+                is_nan = bool(~_torch.isfinite(obs_t[e]).all())
+                _torch.save(
+                    {
+                        "task": args_cli.task,
+                        "trigger": "nan" if is_nan else "obs_explosion",
+                        "num_bad_envs": int(bad.sum()),
+                        "offending_env": e,
+                        "sane_steps_before_trigger": len(_hist) - 1 - sane,
+                        "root_state_w": chosen["root_state_w"][e].cpu(),  # last sane [pos3,quat4,linvel3,angvel3]
+                        "joint_pos": chosen["joint_pos"][e].cpu(),
+                        "joint_vel": chosen["joint_vel"][e].cpu(),
+                        "action": chosen["action"][e].cpu(),
+                        "env_origin": env.unwrapped.scene.env_origins[e].cpu(),
+                        "root_trace": trace.cpu(),  # pre-step root states across the buffer (the runaway ramp)
+                        "joint_trace": jtrace.cpu(),  # pre-step joint angles across the buffer (per-frame pose)
+                        "joint_vel_trace": jvtrace.cpu(),  # pre-step joint velocities across the buffer
+                        "action_trace": atrace.cpu(),  # per-frame actions across the buffer (for physics replay)
+                        "obs_bad": obs_t[e].detach().cpu(),
+                        "joint_names": list(_robot.data.joint_names),
+                    },
+                    _nan_path,
+                )
+                rs = chosen["root_state_w"][e]
+                print(
+                    f"[nan-capture] divergence ({'NaN' if is_nan else 'obs>1e3'}) first hit env {e} "
+                    f"({int(bad.sum())} bad); saved last-sane frame {len(_hist) - 1 - sane} steps back "
+                    f"(base z={float(rs[2]):.2f}, |v|={float(rs[7:10].norm()):.2f}) -> {_nan_path}"
+                )
+                raise RuntimeError("[nan-capture] captured divergence frame; stopping run early (this is expected).")
+            return result
+
+        # Opt-in: only wrap env.step when NAN_CAPTURE=1, so normal benchmark runs pay no per-step
+        # cloning overhead and are never aborted mid-run by the divergence raise.
+        if os.environ.get("NAN_CAPTURE"):
+            env.step = _nan_capture_step
+            print(
+                f"[nan-capture] armed; dumps to {_nan_path} and stops on first divergence (|obs|>{_OBS_LIMIT:g} or NaN)"
+            )
+        # --- END TEMPORARY ---
 
         runner_types = {"OnPolicyRunner": OnPolicyRunner, "DistillationRunner": DistillationRunner}
         if agent_cfg.class_name not in runner_types:
