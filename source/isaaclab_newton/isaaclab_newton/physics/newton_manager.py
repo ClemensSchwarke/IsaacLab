@@ -1033,11 +1033,12 @@ class NewtonManager(PhysicsManager):
         cfg = PhysicsManager._cfg
 
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        builder.default_bvh_cfg = ModelBuilder.BvhConfig(
-            mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
-            gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
-            shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
-        )
+        if hasattr(ModelBuilder, "BvhConfig"):
+            builder.default_bvh_cfg = ModelBuilder.BvhConfig(
+                mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
+                gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
+                shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+            )
 
         cls._register_builder_attributes(builder)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()

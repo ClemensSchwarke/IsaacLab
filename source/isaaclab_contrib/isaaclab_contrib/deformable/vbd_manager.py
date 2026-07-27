@@ -32,6 +32,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel(enable_backward=False)
+def _sync_body_q_prev_kernel(
+    body_world: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
+    body_q: wp.array(dtype=wp.transformf),
+    body_q_prev: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    if world_mask[body_world[i]]:
+        body_q_prev[i] = body_q[i]
+
+
 def _apply_model_cfg(model: Model) -> None:
     """Apply the active solver cfg's :class:`NewtonModelCfg` to the finalized model.
 
@@ -75,10 +87,31 @@ class NewtonVBDManager(NewtonManager):
 
         super().initialize(sim_context)
 
+    _rest_synced: bool = False
+
     @classmethod
     def _solver_specific_clear(cls):
         """Clear VBD-specific state."""
         clear_deformable_builder_hooks()
+        NewtonVBDManager._rest_synced = False
+
+    @classmethod
+    def step(cls) -> None:
+        # VBD measures joint angles relative to the rest pose captured from model.joint_q /
+        # model.body_q at construction. The solver is built before Isaac Lab writes the initial
+        # joint state, so the rest pose would be the all-zero USD pose while the robot actually
+        # starts at its default pose - every joint then carries a spurious angle error. Re-sync
+        # the rest pose from the authored state once and rebuild the solver.
+        if not cls._rest_synced and cls._model is not None and cls._state_0 is not None:
+            from isaaclab.physics import PhysicsManager
+
+            NewtonVBDManager._rest_synced = True
+            wp.copy(cls._model.joint_q, cls._state_0.joint_q)
+            wp.copy(cls._model.joint_qd, cls._state_0.joint_qd)
+            NewtonManager._solver = cls._create_solver(cls._model, PhysicsManager._cfg.solver_cfg)
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = True
+        super().step()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
@@ -235,8 +268,39 @@ class NewtonVBDManager(NewtonManager):
         cls.set_builder(builder)
 
     @classmethod
+    def _prepare_builder_for_finalize(cls, builder) -> None:
+        """Color the builder before finalization."""
+        builder.color()
+
+    @classmethod
+    def _eval_fk_impl(cls, world_reset_mask, fk_mask) -> None:
+        super()._eval_fk_impl(world_reset_mask, fk_mask)
+        # VBD derives velocity from body_q_prev, so a reset teleport must move body_q_prev too
+        # ("Dynamic teleportation: also set body_q_prev and body_qd") - otherwise the pose jump
+        # reads as an enormous velocity and the robot is launched.
+        solver = cls._solver
+        if world_reset_mask is None or solver is None or getattr(solver, "body_q_prev", None) is None:
+            return
+        if cls._model is None or cls._model.body_world is None or cls._model.body_count == 0:
+            return
+        wp.launch(
+            _sync_body_q_prev_kernel,
+            dim=cls._model.body_count,
+            inputs=[cls._model.body_world, world_reset_mask, cls._state_0.body_q, solver.body_q_prev],
+            device=cls._state_0.body_q.device,
+        )
+
+    @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
         """Construct the configured VBD solver."""
+        # VBD captures model.body_q as the joint rest pose at construction; make it
+        # FK-consistent with joint_q first, else joints start violated and explode.
+        from newton import eval_fk
+
+        fk_state = model.state()
+        eval_fk(model, model.joint_q, model.joint_qd, fk_state)
+        wp.copy(model.body_q, fk_state.body_q)
+        wp.copy(model.body_qd, fk_state.body_qd)
         return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
 
     @classmethod
@@ -251,8 +315,18 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._needs_collision_pipeline = True
 
     @classmethod
+    def _run_solver_substeps(cls, contacts) -> None:
+        # VBD integrates maximal coords (body_q); recover generalized coords so Isaac Lab's
+        # articulation view (root pose + joint state read from joint_q) and joint-space
+        # actuators see the stepped state.
+        from newton import eval_ik
+
+        super()._run_solver_substeps(contacts)
+        eval_ik(cls._model, cls._state_0, cls._state_0.joint_q, cls._state_0.joint_qd)
+
+    @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if hasattr(cls._solver, "rebuild_bvh"):
+        if hasattr(cls._solver, "rebuild_bvh") and cls._model is not None and cls._model.particle_count > 0:
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()

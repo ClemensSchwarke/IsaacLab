@@ -118,6 +118,39 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
+    rigid_joint_linear_ke: float = 1.0e5
+    """Penalty stiffness ceiling for structural linear joint constraints [N/m].
+
+    Caps how rigidly linear joint constraints (the constraint holding a joint
+    together) are enforced. Also acts as the ceiling for position-drive
+    stiffness on linear DOFs: the effective drive stiffness is
+    ``min(this, joint_target_ke)``, so keep it above any linear drive gain.
+    Mirrors ``SolverVBD.rigid_joint_linear_ke``.
+    """
+
+    rigid_joint_angular_ke: float = 1.0e5
+    """Penalty stiffness ceiling for structural angular joint constraints [N*m/rad].
+
+    Angular analog of :attr:`rigid_joint_linear_ke`. Position-drive stiffness on
+    revolute DOFs is capped at ``min(this, joint_target_ke)``, so a stiff spring
+    joint (large ``joint_target_ke``) needs this raised above that gain to avoid
+    being silently clamped. Mirrors ``SolverVBD.rigid_joint_angular_ke``.
+    """
+
+    rigid_articulation_solve: str = "local"
+    """Rigid articulation solve strategy. Either ``"local"`` (per-body diagonal
+    VBD solve; joint coupling handled iteratively) or ``"block_sparse_joints"``
+    (coupled block-sparse joint solve). Mirrors ``SolverVBD.rigid_articulation_solve``."""
+
+    rigid_articulation_relaxation: float = 0.65
+    """Under-relaxation factor for the coupled joint update when
+    ``rigid_articulation_solve="block_sparse_joints"``. Mirrors
+    ``SolverVBD.rigid_articulation_relaxation``."""
+
+    rigid_articulation_diagonal_regularization: float = 0.0
+    """Diagonal regularization for the block-sparse articulation solve. Mirrors
+    ``SolverVBD.rigid_articulation_diagonal_regularization``."""
+
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
