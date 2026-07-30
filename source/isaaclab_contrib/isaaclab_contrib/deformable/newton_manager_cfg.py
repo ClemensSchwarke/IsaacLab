@@ -118,6 +118,23 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body capacity of the body-body contact list.
+
+    Contacts beyond this count are dropped and the solver prints a
+    ``Per-body rigid contact buffer overflowed`` warning, so raise this when a single body carries
+    dense contact geometry. Elastic bodies additionally raise the effective capacity to their vertex
+    count. Mirrors ``SolverVBD.rigid_body_contact_buffer_size``.
+    """
+
+    rigid_joint_adaptive_stiffness: bool = True
+    """Whether joint penalty stiffness ramps up over iterations instead of being pinned.
+
+    Ramping converges more gently, but a stiff constraint can slip before the ceiling is reached.
+    Set ``False`` to hold :attr:`rigid_joint_linear_ke` / :attr:`rigid_joint_angular_ke` from the
+    first iteration. Mirrors ``SolverVBD.rigid_joint_adaptive_stiffness``.
+    """
+
     rigid_joint_linear_ke: float = 1.0e5
     """Penalty stiffness ceiling for structural linear joint constraints [N/m].
 

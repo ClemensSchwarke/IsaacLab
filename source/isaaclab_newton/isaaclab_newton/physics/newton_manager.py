@@ -446,6 +446,8 @@ class NewtonManager(PhysicsManager):
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
     _post_replicate_hooks: list[Callable[[ModelBuilder], None]] = []
+    # Run on a builder right after its USD import, before replication or finalization.
+    _post_usd_builder_hooks: list[Callable[[ModelBuilder], None]] = []
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -981,6 +983,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._post_replicate_hooks = []
+        NewtonManager._post_usd_builder_hooks = []
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
@@ -1579,6 +1582,8 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            for hook in cls._post_usd_builder_hooks:
+                hook(builder)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
@@ -1599,6 +1604,8 @@ class NewtonManager(PhysicsManager):
                 source_builders[proto_path], stage, import_result["path_shape_map"]
             )
             replace_newton_builder_shape_colors(source_builders[proto_path], stage)
+            for hook in cls._post_usd_builder_hooks:
+                hook(source_builders[proto_path])
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)

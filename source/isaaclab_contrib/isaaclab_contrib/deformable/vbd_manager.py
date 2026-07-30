@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model
+from newton import JointType, Model
+from newton._src.sim.articulation import com_twist_to_origin_twist
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -42,6 +43,63 @@ def _sync_body_q_prev_kernel(
     i = wp.tid()
     if world_mask[body_world[i]]:
         body_q_prev[i] = body_q[i]
+
+
+@wp.kernel(enable_backward=False)
+def _reset_elastic_joint_state_kernel(
+    joint_type: wp.array(dtype=wp.int32),
+    joint_child: wp.array(dtype=wp.int32),
+    joint_q_start: wp.array(dtype=wp.int32),
+    joint_qd_start: wp.array(dtype=wp.int32),
+    body_world: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
+    body_q: wp.array(dtype=wp.transformf),
+    body_qd: wp.array(dtype=wp.spatial_vectorf),
+    body_com: wp.array(dtype=wp.vec3),
+    joint_q: wp.array(dtype=wp.float32),
+    joint_qd: wp.array(dtype=wp.float32),
+):
+    """Re-seat each reset world's reduced elastic bodies on the pose forward kinematics gave them."""
+    i = wp.tid()
+    if joint_type[i] != wp.int32(JointType.ELASTIC):
+        return
+    child = joint_child[i]
+    if child < 0 or not world_mask[body_world[child]]:
+        return
+
+    # Floating frame follows the body that forward kinematics placed through the attaching joint.
+    q_start = joint_q_start[i]
+    xform = body_q[child]
+    pos = wp.transform_get_translation(xform)
+    rot = wp.transform_get_rotation(xform)
+    joint_q[q_start + 0] = pos[0]
+    joint_q[q_start + 1] = pos[1]
+    joint_q[q_start + 2] = pos[2]
+    joint_q[q_start + 3] = rot[0]
+    joint_q[q_start + 4] = rot[1]
+    joint_q[q_start + 5] = rot[2]
+    joint_q[q_start + 6] = rot[3]
+
+    # An episode starts from an undeformed blade, so clear the modal amplitudes and their rates;
+    # leaving them would carry the previous episode's deformation across the reset.
+    for c in range(q_start + 7, joint_q_start[i + 1]):
+        joint_q[c] = 0.0
+
+    # The floating frame keeps the rigid-body velocity forward kinematics gave the body through the
+    # attaching joint. Zeroing it instead would leave the blade at rest while its parent link starts
+    # with a randomized reset velocity, and the attaching joint would resolve that jump violently.
+    d_start = joint_qd_start[i]
+    twist = com_twist_to_origin_twist(body_qd[child], xform, body_com[child])
+    linear = wp.spatial_top(twist)
+    angular = wp.spatial_bottom(twist)
+    joint_qd[d_start + 0] = linear[0]
+    joint_qd[d_start + 1] = linear[1]
+    joint_qd[d_start + 2] = linear[2]
+    joint_qd[d_start + 3] = angular[0]
+    joint_qd[d_start + 4] = angular[1]
+    joint_qd[d_start + 5] = angular[2]
+    for d in range(d_start + 6, joint_qd_start[i + 1]):
+        joint_qd[d] = 0.0
 
 
 def _apply_model_cfg(model: Model) -> None:
@@ -195,6 +253,8 @@ class NewtonVBDManager(NewtonManager):
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, ignore_paths=deformable_ignore_paths, schema_resolvers=schema_resolvers)
+            for hook in cls._post_usd_builder_hooks:
+                hook(builder)
 
             # Add deformable bodies from the registry (single world at origin).
             for entry in cls._deformable_registry:
@@ -213,6 +273,8 @@ class NewtonVBDManager(NewtonManager):
                 ignore_paths=deformable_ignore_paths,
                 schema_resolvers=schema_resolvers,
             )
+            for hook in cls._post_usd_builder_hooks:
+                hook(proto)
 
             # Inject registered sites into the proto before replication
             global_sites, proto_sites, world_sites = cls._cl_inject_sites(builder, {proto_path: proto})
@@ -289,6 +351,29 @@ class NewtonVBDManager(NewtonManager):
             inputs=[cls._model.body_world, world_reset_mask, cls._state_0.body_q, solver.body_q_prev],
             device=cls._state_0.body_q.device,
         )
+        # A reduced elastic body's floating frame lives in its own owner joint's coordinates, which
+        # forward kinematics never writes back. Left stale, the solver keeps integrating the body at
+        # its pre-reset pose while the attaching joint pulls it to the new one, and the model blows
+        # up on the next step.
+        if cls._model.joint_count > 0:
+            wp.launch(
+                _reset_elastic_joint_state_kernel,
+                dim=cls._model.joint_count,
+                inputs=[
+                    cls._model.joint_type,
+                    cls._model.joint_child,
+                    cls._model.joint_q_start,
+                    cls._model.joint_qd_start,
+                    cls._model.body_world,
+                    world_reset_mask,
+                    cls._state_0.body_q,
+                    cls._state_0.body_qd,
+                    cls._model.body_com,
+                    cls._state_0.joint_q,
+                    cls._state_0.joint_qd,
+                ],
+                device=cls._state_0.body_q.device,
+            )
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:

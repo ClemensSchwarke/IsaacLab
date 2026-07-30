@@ -98,6 +98,12 @@ def _build_newton_builder_from_mapping(
         load_visual_shapes=load_visual_shapes,
     )
 
+    # Let extensions augment each prototype (e.g. bodies that have no USD representation) while it
+    # still describes a single environment, so the additions are replicated along with it.
+    for source_builder in source_builders.values():
+        for hook in NewtonManager._post_usd_builder_hooks:
+            hook(source_builder)
+
     # Inject registered sites into source builders (and global sites into main builder).
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 

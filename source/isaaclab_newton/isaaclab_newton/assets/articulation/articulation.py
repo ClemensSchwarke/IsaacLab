@@ -3658,7 +3658,10 @@ class Articulation(BaseArticulation):
             SimulationManager.get_model(),
             root_prim_path_expr.replace(".*", "*"),
             verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            # ELASTIC joints own a reduced elastic body's floating frame and modal coordinates. They
+            # carry 7 + modes coordinates against 6 + modes DOFs, so they do not fit the joint
+            # buffers, and their state belongs to the solver rather than to the task.
+            exclude_joint_types=[JointType.FREE, JointType.FIXED, JointType.ELASTIC],
         )
         # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
         SimulationManager.get_physics_sim_view().append(self._root_view)
