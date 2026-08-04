@@ -660,6 +660,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_com = self.cfg.show_com
             self._viewer.show_particles = self.cfg.show_particles
             self._viewer.particle_color = self.cfg.particle_color
+            self._viewer.show_elastic_strain = self.cfg.show_elastic_strain
+            self._viewer.elastic_strain_color_max = self.cfg.elastic_strain_color_max
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky

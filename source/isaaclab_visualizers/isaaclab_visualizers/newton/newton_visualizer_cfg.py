@@ -55,6 +55,21 @@ class NewtonVisualizerCfg(VisualizerCfg):
     show_particles: bool = False
     """Show particle visualization."""
 
+    show_elastic_strain: bool = False
+    """Color reduced elastic surfaces by nodal displacement from their rest shape.
+
+    The deformed geometry is drawn either way; this only adds the color map. It is the
+    practical way to see modal deflection that is small next to the body's rigid motion,
+    such as a stiff leaf spring flexing a few millimetres during stance.
+    """
+
+    elastic_strain_color_max: float | None = None
+    """Displacement [m] mapped to the top of the strain color map.
+
+    ``None`` auto-scales per shape, which makes a 2 mm deflection look the same as a
+    30 mm one. Pin it to compare frames, runs, or legs against each other.
+    """
+
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. If None, use Newton viewer defaults.
 
