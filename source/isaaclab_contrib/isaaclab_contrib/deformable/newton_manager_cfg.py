@@ -168,6 +168,12 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     """Diagonal regularization for the block-sparse articulation solve. Mirrors
     ``SolverVBD.rigid_articulation_diagonal_regularization``."""
 
+    rigid_joint_armature: bool = False
+    """Whether the block-sparse articulation solve includes revolute joint armature as coupled
+    relative-coordinate inertia, and scales ``joint_f`` so an explicit torque responds with the
+    same armature-augmented inertia. Requires ``rigid_articulation_solve="block_sparse_joints"``.
+    Mirrors ``SolverVBD.rigid_joint_armature``."""
+
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
