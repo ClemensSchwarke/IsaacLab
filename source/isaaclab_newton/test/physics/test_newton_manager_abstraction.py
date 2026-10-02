@@ -891,6 +891,55 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         assert calls["n"] == 1 + expected_mid_loop_collides
 
 
+@pytest.mark.parametrize(
+    "solver_cfg",
+    [MJWarpSolverCfg(use_mujoco_contacts=False), XPBDSolverCfg()],
+    ids=["mjwarp", "xpbd"],
+)
+def test_external_body_force_acts_in_every_substep(solver_cfg):
+    """A wrench written to ``state_0.body_f`` once per tick reaches the solver in every substep.
+
+    Each substep clears the forces; Isaac Lab's wrench composers only write them once per
+    physics step, so without holding them they acted in the first substep alone.
+    """
+    num_substeps = 4
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps, use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.physics_manager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.add_shape_sphere(body=body, radius=0.05)
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        seen = []
+        original_step = NewtonManager._step_solver.__func__
+
+        def recording_step(cls, state_in, state_out, control, contacts, dt):
+            seen.append(float(state_in.body_f.numpy()[body, 2]))
+            return original_step(cls, state_in, state_out, control, contacts, dt)
+
+        NewtonManager._step_solver = classmethod(recording_step)
+        try:
+            for _ in range(2):
+                body_f = NewtonManager._state_0.body_f.numpy()
+                body_f[body, 2] = 3.0
+                NewtonManager._state_0.body_f.assign(body_f)
+                sim.step(render=False)
+        finally:
+            NewtonManager._step_solver = classmethod(original_step)
+
+        assert seen == [3.0] * (2 * num_substeps)
+        # forces are still cleared once the physics step is over
+        assert np.all(NewtonManager._state_0.body_f.numpy() == 0.0)
+
+
 # ---------------------------------------------------------------------------
 # Regression: an env reset written through the data layer must land in the
 # manager's canonical _state_0 after an odd number of steps when CUDA graphs

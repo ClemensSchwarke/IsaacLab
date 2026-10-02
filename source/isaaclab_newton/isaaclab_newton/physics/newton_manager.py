@@ -325,6 +325,8 @@ class NewtonManager(PhysicsManager):
     _state_0: State = None
     _state_1: State = None
     _control: Control = None
+    _body_f_hold: wp.array | None = None
+    """External body wrenches of the current physics step, re-applied after each substep clears them."""
 
     # Physics settings
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
@@ -942,6 +944,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._state_0 = None
         NewtonManager._state_1 = None
         NewtonManager._control = None
+        NewtonManager._body_f_hold = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
         NewtonManager._eval_fk = _eval_fk_unbound
@@ -1397,6 +1400,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._state_0 = cls._model.state()
         NewtonManager._state_1 = cls._model.state()
         NewtonManager._control = cls._model.control()
+        body_f = cls._state_0.body_f
+        NewtonManager._body_f_hold = wp.zeros_like(body_f) if body_f is not None else None
         # The initial body-state update from joint coordinates is deferred to the tail of
         # initialize_solver(), where it runs through the solver-specialized FK delegate after the solver is initialized.
 
@@ -2049,11 +2054,18 @@ class NewtonManager(PhysicsManager):
         # Last substep is skipped: its contact set would only feed the next tick's
         # top-of-loop collide(), not this one.
         collide_mid_loop = collide_every > 0 and cls._needs_collision_pipeline and contacts is not None
+        # External wrenches (e.g. Isaac Lab's wrench composers) are written to body_f once per physics
+        # step, but every substep clears the forces; hold them so they act for the whole step.
+        hold = cls._body_f_hold if cls._num_substeps > 1 else None
+        if hold is not None:
+            wp.copy(hold, cls._state_0.body_f)
 
         if cls._use_single_state:
             for i in range(cls._num_substeps):
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
+                if hold is not None and i + 1 < cls._num_substeps:
+                    wp.copy(cls._state_0.body_f, hold)
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
                     cls._collision_pipeline.collide(cls._state_0, contacts)
         else:
@@ -2066,6 +2078,8 @@ class NewtonManager(PhysicsManager):
                 else:
                     NewtonManager._state_0, NewtonManager._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
+                if hold is not None and i + 1 < cls._num_substeps:
+                    wp.copy(cls._state_0.body_f, hold)
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
                     cls._collision_pipeline.collide(cls._state_0, contacts)
 
