@@ -110,7 +110,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 
-from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
+from .newton_manager_cfg import NewtonCfg, NewtonJointCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.actuators import NewtonActuatorAdapter
@@ -1046,6 +1046,8 @@ class NewtonManager(PhysicsManager):
         cls._register_builder_attributes(builder)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
+        joint_cfg = cfg.default_joint_cfg if isinstance(cfg, NewtonCfg) else NewtonJointCfg()
+        checked_apply(joint_cfg, builder.default_joint_cfg)
         return builder
 
     @classmethod

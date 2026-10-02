@@ -99,6 +99,31 @@ class NewtonShapeCfg:
 
 
 @configclass
+class NewtonJointCfg:
+    """Default per-axis joint properties applied to all joints in a Newton scene.
+
+    Mirrors Newton's :attr:`ModelBuilder.default_joint_cfg`. Only the limit gains are declared;
+    the remaining fields keep Newton's upstream defaults. The USD importer falls back to these
+    gains for joints that do not author ``newton:limit_*_ke``/``newton:limit_*_kd``.
+    Forwarded via :func:`~isaaclab.utils.checked_apply` at builder construction.
+    """
+
+    # Defaults mirror Newton's JointDofConfig defaults so an unspecified field is a no-op.
+    limit_ke: float = 1.0e4
+    """Joint position-limit stiffness [N/m or N*m/rad, depending on joint type].
+
+    Solvers that treat limits as a penalty (e.g. VBD) let a joint past its limit by roughly the
+    applied effort divided by this value. Mirrors Newton's ``JointDofConfig.limit_ke`` default.
+    """
+
+    limit_kd: float = 1.0e1
+    """Joint position-limit damping [N*s/m or N*m*s/rad, depending on joint type].
+
+    Mirrors Newton's ``JointDofConfig.limit_kd`` default.
+    """
+
+
+@configclass
 class NewtonCfg(PhysicsCfg):
     """Configuration for Newton physics manager.
 
@@ -167,6 +192,14 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
+    """
+
+    default_joint_cfg: NewtonJointCfg = NewtonJointCfg()
+    """Default per-axis joint properties applied to every joint in the scene.
+
+    Forwarded to Newton's :attr:`ModelBuilder.default_joint_cfg` at builder
+    construction via :func:`~isaaclab.utils.checked_apply`. See
+    :class:`NewtonJointCfg` for the declared fields.
     """
 
     simplify_meshes: bool = True

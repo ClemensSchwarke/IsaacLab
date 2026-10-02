@@ -38,6 +38,7 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonFeatherstoneManager,
+    NewtonJointCfg,
     NewtonKaminoManager,
     NewtonManager,
     NewtonMJWarpManager,
@@ -253,6 +254,16 @@ def test_newton_shape_cfg_defaults_match_newton_shape_config():
     assert shape_cfg.ke == upstream.ke
     assert shape_cfg.kd == upstream.kd
     assert shape_cfg.mu == upstream.mu
+
+
+def test_newton_joint_cfg_defaults_match_newton_joint_dof_config():
+    """``NewtonJointCfg`` limit gains mirror Newton's ``JointDofConfig``, so unset fields are a no-op."""
+    import newton
+
+    upstream = newton.ModelBuilder().default_joint_cfg
+    joint_cfg = NewtonJointCfg()
+    assert joint_cfg.limit_ke == upstream.limit_ke
+    assert joint_cfg.limit_kd == upstream.limit_kd
 
 
 def test_mpm_solver_cfg_maps_only_newton_solver_fields():
